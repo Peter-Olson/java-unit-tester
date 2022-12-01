@@ -41,10 +41,18 @@ public class Checker {
    private static final int MAX_VAR_NAME_LENGTH = 50;
    private static final int PENALTY = 5;
    private static final String ANSWER_SPOT = "A:"; //The characters that designate where an answer begins on a line
-   private static final String CURRENT_UNIT_TEST_FILE = "unit_tests_p2.txt"; //@@CHANGE depending on the project
-   private static final int TOTAL_MINIMAL_OUTPUTS = 3;  //@@CHANGE depending on the total number of expected outputs (minimum)
-   private static final int TOTAL_EXPECTED_ANSWERS = 0; //@@CHANGE depending on whether there are questions to answer within the project
+   private static String CURRENT_UNIT_TEST_FILE;
+   private static int TOTAL_MINIMAL_OUTPUTS = 3;
    private static final int WEIGHT = 3; //Weight used for Unit Tests
+   private static final String CHECK_COMPILE = "A";
+   private static final String CHECK_FORMAT = "B";
+   private static final String CHECK_NAMES = "C";
+   private static final String CHECK_OUTPUT = "D";
+   private static final String CHECK_ANSWERS = "E";
+   private static final String CHECK_UNIT_TESTS = "F";
+   private static final String CHECK_COMPONENTS = "G";
+   private static boolean CHECK_OUTPUTS_LITERALLY = false;
+   private static Scanner sc = new Scanner(System.in);
    
    //Expected program outputs -- Project 1
    private static final int EO_PROGRAM_NUM = 0;
@@ -67,17 +75,41 @@ public class Checker {
       7) has correct components -->       checkContains(..)
    */
    public static void main( String[] args ) {
-      
+
       File[] javaFiles = getFiles();
       int[] grades = new int[ javaFiles.length ];
       
-      switch( STAGE ) {
+      //Find which checks to run
+      String checkingKey = getWhichMethodsToRun();
+
+      //Get unit test text file name
+      if( checkingKey.contains(CHECK_UNIT_TESTS))
+         CURRENT_UNIT_TEST_FILE = getCurrentUnitTestFile();
+      else
+         CURRENT_UNIT_TEST_FILE = "";
+
+      //If user is checking outputs, determine whether the user wants to check for literal matching outputs,
+      //or just the total number of outputs
+      if( checkingKey.contains(CHECK_OUTPUT)) {
+         SOPln("Do you want to check for outputs to match exactly?");
+         String response = sc.nextLine().toLowerCase();
+         if( response.contains("yes") || response.contains("exact")) {
+            CHECK_OUTPUTS_LITERALLY = true;
+            SOPln("How many outputs are expected?");
+            TOTAL_MINIMAL_OUTPUTS = sc.nextInt(); sc.nextLine();
+         }
+      }
+
+      //Get which function to call first
+      String lastFunctionLetter = checkingKey.substring( checkingKey.length() - 1 );
+
+      switch( lastFunctionLetter ) {
       
-         case 1: grades = checkCompile( javaFiles ); break;
+         case CHECK_COMPILE:    grades = checkCompile( javaFiles );                 break;
+
+         case CHECK_FORMAT:     grades = checkFormatting( javaFiles, checkingKey ); break;
          
-         //case 2: grades = checkFormatting( javaFiles ); break;
-         
-         //case 2: grades = checkNames( javaFiles ); break;
+         case CHECK_NAMES:      grades = checkNames( javaFiles, checkingKey );      break;
          
          /*
             Note that there are two versions of the checkOutputs(...) method.
@@ -87,21 +119,54 @@ public class Checker {
             1) checkOutputs( File[] javaFiles )
             2) checkOutputs( File[] javaFiles, int totalMinimalOutputs )
          */
-         //case 4: grades = checkOutputs( javaFiles, TOTAL_MINIMAL_OUTPUTS ); break;
+         case CHECK_OUTPUT:     grades = CHECK_OUTPUTS_LITERALLY ? checkOutputs( javaFiles, checkingKey )
+                                                                 : checkOutputs( javaFiles, TOTAL_MINIMAL_OUTPUTS, checkingKey ); break;
          
-         //case 4: grades = checkAnswers( javaFiles ); break;
+         case CHECK_ANSWERS:    grades = checkAnswers( javaFiles, checkingKey );    break;
          
-         case 2: grades = checkUnitTests( javaFiles ); break;
+         case CHECK_UNIT_TESTS: grades = checkUnitTests( javaFiles, checkingKey );  break;
          
-         //case 5: grades = checkContains( javaFiles); break;
+         case CHECK_COMPONENTS: grades = checkContains( javaFiles, checkingKey );   break;
          
          default: SOPln("Error. STAGE value does not match total check methods being run."); break;
       }
       
       grades = proportionalize( grades );
       printGrades( grades, javaFiles );
+
+      sc.close();
    }
    
+   /**
+    * Asks the user which methods they want to run for the Checker program. Multiple options can be selected by entering a String of letters, eg. "ABCEFJ" 
+    *
+    * @return String A key that indicates which Checker methods will be run. The key consists of letters, eg. "ABDEG", which indicate which methods should be called
+   */
+   private static String getWhichMethodsToRun() {
+      SOPln("What checks do you want to run? Enter the letter of each option (can select multiple)\nEg. \"ABEF\"");
+      SOPln("A. Check compilability\n" +
+            "B. Check formatting\n" +
+            "C. Check variable names\n" +
+            "D. Check outputs\n" +
+            "E. Check answers\n" +
+            "F. Run unit tests\n" +
+            "G. Check components");
+      return sc.nextLine().toUpperCase().trim();
+   }
+
+   /**
+    *  Get the name of the unit test text file from the user
+    *
+    * @return String The name of the unit test text file for unit testing
+   */
+   private static String getCurrentUnitTestFile() {
+      SOPln("What unit test text file do you want to use?");
+      String text_file_name = sc.nextLine().trim();
+      if( !text_file_name.contains(".txt") )
+         text_file_name += ".txt";
+      return text_file_name;
+   }
+
    /**
       Checks whether the java file compiles or not
       
@@ -305,12 +370,17 @@ public class Checker {
            written and added
       
       @param javaFiles The list of student java files
+      @param checkingKey The key for indicating which functions should be run
       @return int[] The list of grades that correspond with the students' java files
       @see checkCompile( File[] javaFiles)
       @see hasOpenParentheses( String line )
    */
-   private static int[] checkFormatting( File[] javaFiles ) {
-      int[] grades = checkCompile( javaFiles );
+   private static int[] checkFormatting( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       //check each java file
       for( int i = 0; i < javaFiles.length; i++ ) {
@@ -672,8 +742,8 @@ public class Checker {
         Letters and digits may be drawn from the entire Unicode character set,
         This allows programmers to use identifiers in their programs that are written in their native languages.
 
-        An identifier cannot have the same spelling (Unicode character sequence) as a keyword (§3.9),
-        boolean literal (§3.10.3), or the null literal (§3.10.7), or a compile-time error occurs.
+        An identifier cannot have the same spelling (Unicode character sequence) as a keyword (ï¿½3.9),
+        boolean literal (ï¿½3.10.3), or the null literal (ï¿½3.10.7), or a compile-time error occurs.
         
         However, it best practice to only use English characters.
       * This particular Checker checks that the first letter is alphabet letter, and that the rest of the letters
@@ -705,10 +775,17 @@ public class Checker {
       -------------------------------------------------------------------------
       
       @param javaFiles The java files to check
+      @param checkingKey The key for determining which Checker functions should be run
       @return int[] The list of grades associated in parallel with each java file
    */
-   private static int[] checkNames( File[] javaFiles ) {
-      int[] grades = checkCompile( javaFiles );
+   private static int[] checkNames( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       String[] restrictedWords =
          {"abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
@@ -1003,11 +1080,20 @@ public class Checker {
       Check files against expected outputs
       
       @param javaFiles The java files to be checked
+      @param checkingKey The key used to determine which checking functions will be run
       @return int[] The grades of each java file
       @see Runtime.getRuntime().exec( String command )
    */
-   private static int[] checkOutputs( File[] javaFiles ) {
-      int[] grades = checkNames( javaFiles );
+   private static int[] checkOutputs( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_NAMES))
+         grades = checkNames( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       final String EXPECTED = EO_PROGRAM_LIST[ EO_PROGRAM_NUM ];
       
@@ -1055,6 +1141,7 @@ public class Checker {
       
       @param javaFiles The java files to be checked
       @param totalMinimalOutputs The minimum number of outputs that is expected
+      @param checkingKey The key that determines which checking functions should be run
       @return int[] The grades for the java files
       @see checkNames( File[] javaFiles)
       @see TOTAL_MINIMAL_OUTPUTS
@@ -1063,8 +1150,16 @@ public class Checker {
       @see Process.getInputStream()
       @see BufferedReader.readLine()
    */
-   private static int[] checkOutputs( File[] javaFiles, int totalMinimalOutputs ) {
-      int[] grades = checkNames( javaFiles );
+   private static int[] checkOutputs( File[] javaFiles, int totalMinimalOutputs, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_NAMES))
+         grades = checkNames( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       int totalOutputs = 0;
       
@@ -1103,10 +1198,23 @@ public class Checker {
       Check files for expected answers in the comments
       
       @param javaFiles The java files to check
+      @param checkingKey The key that determines which checking functions are run
       @return int[] The grades for each java file
    */
-   private static int[] checkAnswers( File[] javaFiles ) {
-      int[] grades = checkNames( javaFiles );
+   private static int[] checkAnswers( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_OUTPUT) && CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_OUTPUT) && !CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs(javaFiles, TOTAL_MINIMAL_OUTPUTS, checkingKey);
+      else if( checkingKey.contains(CHECK_NAMES))
+         grades = checkNames( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       Scanner teacherCheck = new Scanner( System.in );
       int missingAnswers = 0;
@@ -1145,6 +1253,8 @@ public class Checker {
          grades[i] += MAX_GRADE - missingAnswers*PENALTY - deductionsFromTeacher*PENALTY;
       
       }
+
+      teacherCheck.close();
       
       return grades;
    }
@@ -1154,10 +1264,25 @@ public class Checker {
       lowered grades for this section.
       
       @param javaFiles The student files to run unit tests with
+      @param checkingKey The key that determines which checking functions to run
       @return int[] The list of grades that are associated with each student java file
    */
-   public static int[] checkUnitTests( File[] javaFiles ) {
-      int[] grades = checkCompile( javaFiles );
+   public static int[] checkUnitTests( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_ANSWERS))
+         grades = checkAnswers( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_OUTPUT) && CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_OUTPUT) && !CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs(javaFiles, TOTAL_MINIMAL_OUTPUTS, checkingKey);
+      else if( checkingKey.contains(CHECK_NAMES))
+         grades = checkNames( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
 
       //check each java file
       for( int i = 0; i < javaFiles.length; i++ ) {
@@ -1176,12 +1301,29 @@ public class Checker {
       Check if java file contains the necessary components
       
       @param javaFiles The files to check
+      @param checkingKey The key that determines which checking functions to run
       @return int[] The list of grades assigned to each program
       @see checkUnitTests( File[] javaFiles )
       @see getClassFromFile( String fullClassName )
    */
-   public static int[] checkContains( File[] javaFiles ) {
-      int[] grades = checkUnitTests( javaFiles );
+   public static int[] checkContains( File[] javaFiles, String checkingKey ) {
+      int[] grades = new int[ javaFiles.length ];
+
+      //Run previous checking methods if keys are selected
+      if(      checkingKey.contains(CHECK_UNIT_TESTS))
+         grades = checkUnitTests( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_ANSWERS))
+         grades = checkAnswers( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_OUTPUT) && CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_OUTPUT) && !CHECK_OUTPUTS_LITERALLY )
+         grades = checkOutputs(javaFiles, TOTAL_MINIMAL_OUTPUTS, checkingKey);
+      else if( checkingKey.contains(CHECK_NAMES))
+         grades = checkNames( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_FORMAT))
+         grades = checkFormatting( javaFiles, checkingKey );
+      else if( checkingKey.contains(CHECK_COMPILE))
+         grades = checkCompile( javaFiles );
       
       final int MIN_METHODS = 7;
       final int MIN_LOOPS = 2;
