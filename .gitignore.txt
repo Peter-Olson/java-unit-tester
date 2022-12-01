@@ -1,0 +1,8 @@
+*.class
+dictionary_rikitikita.txt
+Project2UnitTests.txt
+Project3UnitTests.txt
+unit_tests_h6.txt
+unit_tests_p2.txt
+winLoss.txt
+connectFourGames.txt
